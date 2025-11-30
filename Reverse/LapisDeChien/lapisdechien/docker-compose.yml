@@ -1,0 +1,18 @@
+services:
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lapisdechien
+    hostname: challenge
+    ports:
+      - "8000:80"
+    read_only: false
+    cap_add:
+      - SYS_ADMIN
+      - SYS_PTRACE
+    environment:
+      - SECRET=a7c52aa96a267bba3f9d15e3a0c06f0b
+      - TZ=UTC
+    restart: unless-stopped

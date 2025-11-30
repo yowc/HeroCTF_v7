@@ -1,0 +1,8 @@
+services:
+  safe_device-players:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: safe_device-players
+    ports:
+      - "127.0.0.1:2222:2222"

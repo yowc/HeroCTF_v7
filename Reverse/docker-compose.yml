@@ -1,0 +1,60 @@
+services:
+
+  # ===== THE OBSIDIAN OPTIMIZER ====
+  the_obsidian_optimizer:
+    build:
+      context: ./the_obsidian_optimizer/
+      dockerfile: Dockerfile
+    container_name: the_obsidian_optimizer
+    restart: unless-stopped
+    ports:
+      - "7000:1337"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: false
+    environment:
+      - LISTEN_PORT=1337
+    networks:
+      - the_obsidian_optimizer_net
+
+  # ===== THE MAZE OF THE SORCERER ====
+  the_maze_of_the_sorcerer:
+    build:
+      context: ./the_maze_of_the_sorcerer/
+      dockerfile: Dockerfile
+    container_name: the_maze_of_the_sorcerer
+    restart: unless-stopped
+    ports:
+      - "7001:7001"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: false
+    environment:
+      - LISTEN_PORT=7001
+    networks:
+      - the_maze_of_the_sorcerer_net
+
+  # ===== APPRENTICE OF THE IR FORGE ====
+  apprentice_of_the_ir_forge:
+    build:
+      context: ./apprentice_of_the_IR_forge/
+      dockerfile: Dockerfile
+    container_name: apprentice_of_the_ir_forge
+    restart: unless-stopped
+    ports:
+      - "7002:7002"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: false
+    environment:
+      - LISTEN_PORT=7002
+    networks:
+      - apprentice_of_the_ir_forge_net
+
+networks:
+  the_obsidian_optimizer_net:
+    driver: bridge
+  the_maze_of_the_sorcerer_net:
+    driver: bridge
+  apprentice_of_the_ir_forge_net:
+    driver: bridge

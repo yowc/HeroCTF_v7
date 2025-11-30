@@ -1,0 +1,145 @@
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #1e1e1e;
+    color: #ddd;
+    padding: 20px;
+  }
+  h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+  }
+  ul.list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  ul.list li {
+    margin: 0;
+  }
+  .clone-entry {
+    width: 100%;
+    border: 1px solid #7a0000;
+    background: linear-gradient(135deg, rgba(122, 0, 0, 0.65), rgba(15, 15, 15, 0.95));
+    color: #f4f4f4;
+    padding: 14px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+  .clone-entry:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(179, 0, 0, 0.25);
+    border-color: #d10000;
+  }
+  .clone-entry:focus {
+    outline: 2px solid #d10000;
+    outline-offset: 2px;
+  }
+  .clone-entry .clone-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #ff6666;
+  }
+  .clone-entry .clone-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #ffffff;
+  }
+  .empty {
+    font-style: italic;
+    color: #888;
+  }
+  .swal2-dark-popup {
+    background-color: #1b1b1b !important;
+    border: 1px solid #7a0000;
+    color: #f0f0f0 !important;
+  }
+  .swal2-dark-popup .swal2-title,
+  .swal2-dark-popup .swal2-html-container {
+    color: #f0f0f0 !important;
+  }
+  .swal2-confirm-btn {
+    background-color: #b30000 !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .swal2-confirm-btn:hover {
+    background-color: #d10000 !important;
+  }
+  .swal2-cancel-btn {
+    background-color: #2b2b2b !important;
+    color: #f5f5f5 !important;
+    border: none !important;
+  }
+  .swal2-cancel-btn:hover {
+    background-color: #3a3a3a !important;
+  }
+</style>
+
+<h2>Your clones</h2>
+<ul class="list">
+  <% if (!entries || entries.length === 0) { %>
+    <li class="empty">No data recovered.</li>
+  <% } else { %>
+    <% entries.forEach(e => { %>
+      <li>
+        <button type="button" class="clone-entry" data-clone="<%= e.name %>">
+          <span class="clone-label">Clone</span>
+          <span class="clone-name">/<%= e.name %></span>
+        </button>
+      </li>
+    <% }) %>
+  <% } %>
+</ul>
+
+<script src="/public/sweetalert2.js"></script>
+<script>
+  function confirmCloneDownload(cloneName) {
+    Swal.fire({
+      title: 'Confirm download',
+      text: `Do you want to download /${cloneName}?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Download',
+      cancelButtonText: 'Cancel',
+      background: '#1b1b1b',
+      color: '#f0f0f0',
+      confirmButtonColor: '#b30000',
+      cancelButtonColor: '#2b2b2b',
+      customClass: {
+        popup: 'swal2-dark-popup',
+        confirmButton: 'swal2-confirm-btn',
+        cancelButton: 'swal2-cancel-btn'
+      }
+    }).then(result => {
+      if (result.isConfirmed) {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = `/files/download/${encodeURIComponent(cloneName)}`;
+        downloadLink.style.display = 'none';
+        downloadLink.setAttribute('download', `${cloneName}.zip`);
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      }
+    });
+  }
+  document.querySelectorAll('.clone-entry').forEach(node => {
+    node.addEventListener('click', () => {
+      const cloneName = node.dataset.clone;
+      if (cloneName) {
+        confirmCloneDownload(cloneName);
+      }
+    });
+  });
+</script>

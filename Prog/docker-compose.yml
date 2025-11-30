@@ -1,0 +1,22 @@
+services:
+
+  # ===== WHAC A MOLE ====
+  whac_a_mole:
+    build:
+      context: ./whac_a_mole/
+      dockerfile: Dockerfile
+    container_name: whac_a_mole
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: false
+    environment:
+      - LISTEN_PORT=8000
+    networks:
+      - whac_a_mole_net
+
+networks:
+  whac_a_mole_net:
+    driver: bridge

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ employee.name }} - Employee Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="/employees">
+                <i class="bi bi-people-fill me-2"></i>Employee Directory
+            </a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-2"></i>{{ username }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/admin"><i class="bi bi-gear me-2"></i>Admin Panel</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Back Button -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <a href="/employees" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Employee Directory
+                </a>
+            </div>
+        </div>
+
+        <!-- Employee Details Card -->
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="card shadow-lg border-0">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <img src="/static/pictures/{{ employee.id }}.jpg" 
+                                 class="rounded-circle shadow-sm" 
+                                 style="width: 150px; height: 150px; object-fit: cover;"
+                                 alt="{{ employee.name }}"
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9Ijc1IiBjeT0iNzUiIHI9Ijc1IiBmaWxsPSIjZjhmOWZhIi8+CjxwYXRoIGQ9Ik03NSA3NUM4MS42MjcgNzUgODcgNjkuNjI3IDg3IDYzQzg3IDU2LjM3MyA4MS42MjcgNTEgNzUgNTFDNjguMzczIDUxIDYzIDU2LjM3MyA2MyA2M0M2MyA2OS42MjcgNjguMzczIDc1IDc1IDc1WiIgZmlsbD0iIzZjNzU3ZCIvPgo8cGF0aCBkPSJNNzUgODdDNjguMzczIDg3IDYzIDkxLjM3MyA2MyA5OEM2MyAxMDQuNjI3IDY4LjM3MyAxMTAgNzUgMTEwQzgxLjYyNyAxMTAgODcgMTA0LjYyNyA4NyA5OEM4NyA5MS4zNzMgODEuNjI3IDg3IDc1IDg3WiIgZmlsbD0iIzZjNzU3ZCIvPgo8L3N2Zz4=';">
+                            <h2 class="mt-4 mb-2 fw-bold text-dark">{{ employee.name }}</h2>
+                            <p class="text-muted fs-5">{{ employee.position }}</p>
+                        </div>
+
+                        <div class="row g-4">
+                            <div class="col-12">
+                                <div class="d-flex align-items-center p-3 bg-light rounded">
+                                    <div class="me-3">
+                                        <i class="bi bi-envelope text-primary" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1 fw-semibold text-muted">Email</h6>
+                                        <p class="mb-0">{{ employee.email }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="d-flex align-items-center p-3 bg-light rounded">
+                                    <div class="me-3">
+                                        <i class="bi bi-telephone text-primary" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1 fw-semibold text-muted">Phone</h6>
+                                        <p class="mb-0">{{ employee.phone }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="d-flex align-items-center p-3 bg-light rounded">
+                                    <div class="me-3">
+                                        <i class="bi bi-geo-alt text-primary" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1 fw-semibold text-muted">Location</h6>
+                                        <p class="mb-0">{{ employee.location }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

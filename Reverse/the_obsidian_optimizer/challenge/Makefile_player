@@ -1,0 +1,26 @@
+CC = clang
+OPT = opt
+
+SRC = src/
+BIN = bin/
+
+VALID_PASS = valid_pass
+LLVM_PASS = the_obsidian_optimizer
+LLVM_EMIT = emit
+
+VPASS = $(SRC)$(VALID_PASS).c
+
+EMIT = $(BIN)$(LLVM_EMIT).ll
+
+$(EMIT): $(VPASS)
+	$(CC) -O0 -emit-llvm -S $< -o $@
+
+init:
+	@echo "Building" $(VALID_PASS) "for" $(LLVM_PASS) "passes"   
+	@echo ---------------------------------
+	mkdir -p bin
+	
+all: init $(EMIT)
+
+clean:
+	rm $(EMIT)

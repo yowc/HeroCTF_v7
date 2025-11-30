@@ -1,0 +1,60 @@
+services:
+
+  # ===== ANDOR ====
+  andor:
+    build:
+      context: ./Andor/
+      dockerfile: Dockerfile
+    container_name: andor
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: true
+    environment:
+      - LISTEN_PORT=9000
+    networks:
+      - andor_net
+
+  # ===== PERILOUS ====
+  perilous:
+    build:
+      context: ./Perilous/
+      dockerfile: Dockerfile
+    container_name: perilous
+    restart: unless-stopped
+    ports:
+      - "9001:9001"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: true
+    environment:
+      - LISTEN_PORT=9001
+    networks:
+      - perilous_net
+
+  # ===== TARSNAP ====
+  tarsnap:
+    build:
+      context: ./Tarsnap/
+      dockerfile: Dockerfile
+    container_name: tarsnap
+    restart: unless-stopped
+    ports:
+      - "9002:9002"
+    mem_limit: 1024m
+    cpus: 1
+    read_only: true
+    environment:
+      - LISTEN_PORT=9002
+    networks:
+      - tarsnap_net
+
+networks:
+  andor_net:
+    driver: bridge
+  perilous_net:
+    driver: bridge
+  tarsnap_net:
+    driver: bridge

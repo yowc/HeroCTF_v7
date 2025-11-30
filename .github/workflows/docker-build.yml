@@ -1,0 +1,45 @@
+name: Build check on Dockerfiles
+
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo content
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Images
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          find . -type f -name "*Dockerfile*" -print0 \
+            | while IFS= read -r -d '' dockerfile_path; do
+              echo "==========[ $dockerfile_path ]=========="
+
+              dir="$(dirname "$dockerfile_path")"
+              fname="$(basename "$dockerfile_path")"
+
+              pushd "$dir" >/dev/null
+              log_file="$(mktemp /tmp/docker-build.XXXXXX.log)"
+
+              if docker buildx build -f "$fname" . > "$log_file" 2>&1; then
+                echo "Docker build SUCCESS"
+              else
+                echo "Docker build FAILED"
+                cat "$log_file"
+                rm -f "$log_file"
+                popd >/dev/null
+                exit 1
+              fi
+
+              rm -f "$log_file"
+              popd >/dev/null
+            done

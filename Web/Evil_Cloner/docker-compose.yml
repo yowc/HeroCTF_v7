@@ -1,0 +1,35 @@
+services:
+  app:
+    build: ./challenge
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=evilcloner_user
+      - DB_PASSWORD=evilcloner_password
+      - DB_NAME=evilcloner_db
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1733,exec
+      - /usr/app/data:mode=1733
+
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=1
+      - MYSQL_DATABASE=evilcloner_db
+      - MYSQL_USER=evilcloner_user
+      - MYSQL_PASSWORD=evilcloner_password
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

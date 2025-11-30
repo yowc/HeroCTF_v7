@@ -1,0 +1,29 @@
+services:
+  middle-earth:
+    build: ./challenge/
+    ports:
+        - "2222:22"
+        - "8888:80"
+    hostname: middle-earth
+    environment:
+        - ADMINPASS=bd9ef3c78bf38cdcb5cf1450dcb4bca4
+        - FLAG=Hero{why_n0_http5_?_dbf81c4c9f3cb1b0ae72ad23c019fdce}
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - middle-earth_network
+
+  bot:
+    build: ./bot/
+    hostname: middle-earth-bot
+    depends_on:
+      - middle-earth
+    environment:
+        - ADMINPASS=bd9ef3c78bf38cdcb5cf1450dcb4bca4
+        - WEBAPP=http://middle-earth
+    networks:
+      - middle-earth_network
+
+networks:
+  middle-earth_network:
+    driver: bridge

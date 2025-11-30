@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>HeroCTF - Login</title>
+    <style>
+      :root{--bg:#0b1220;--card:#121a2a;--line:#1f2a44;--muted:#aab3d0}
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:grid;place-items:center;min-height:100vh;background:var(--bg);color:#eaeef8;margin:0}
+      .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:420px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+      h1{margin:0 0 16px;font-size:22px}
+      form{display:grid;gap:8px;margin-top:8px}
+      input,button{padding:10px 12px;border-radius:10px;border:1px solid #24324f;background:#0e1626;color:#eaeef8}
+      button{cursor:pointer}
+      .muted{opacity:.9;color:var(--muted);font-size:13px}
+      .sep{height:1px;background:#24324f;margin:18px 0}
+      a.button{display:block;text-align:center;text-decoration:none;border:1px solid #4b6bff;padding:10px 12px;border-radius:10px;background:#0e1626;color:#eaeef8}
+      a.button:hover,button:hover{filter:brightness(1.1)}
+      .error{background:#2a1216;border:1px solid #5f1a22;color:#ffb3be;padding:10px 12px;border-radius:10px;margin-top:8px;display:none}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Authentication</h1>
+
+      <form method="POST" action="/local-login" autocomplete="off">
+        <input type="text" name="username" placeholder="username" required/>
+        <input type="password" name="password" placeholder="password" required/>
+        <button type="submit">Login</button>
+        <div id="err" class="error">Invalid credentials: incorrect password.</div>
+      </form>
+
+      <div class="sep"></div>
+
+      <a class="btn" href="/flag">SSO Login</a>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      if (params.get('error') === 'badpass') {
+        const el = document.getElementById('err');
+        if (el) el.style.display = 'block';
+      }
+    </script>
+  </body>
+</html>

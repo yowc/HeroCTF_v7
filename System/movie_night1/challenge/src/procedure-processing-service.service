@@ -1,0 +1,17 @@
+[Unit]
+Description=Procedure Processing Service
+After=dbus.service
+Requires=dbus.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/procservice/procedure-processing-service.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

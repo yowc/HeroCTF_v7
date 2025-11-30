@@ -1,0 +1,7 @@
+services:
+  heroctf-uboot:
+    build: .
+    container_name: heroctf-uboot
+    ports:
+      - "4000:4000"
+    restart: unless-stopped

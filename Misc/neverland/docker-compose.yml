@@ -1,0 +1,6 @@
+services:
+  neverland_machine:
+    build: ./challenge/
+    ports:
+        - "2222:22"
+    hostname: neverland

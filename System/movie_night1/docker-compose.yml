@@ -1,0 +1,6 @@
+services:
+  movie-night:
+    build: ./challenge/
+    ports:
+        - "2222:22"
+    hostname: movie-night

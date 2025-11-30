@@ -1,0 +1,9 @@
+# Ignore build artifacts
+target/
+*.bin
+*.exe
+
+# Ignore docker files that shouldn't be in the image
+Dockerfile
+docker_build.sh
+.dockerignore

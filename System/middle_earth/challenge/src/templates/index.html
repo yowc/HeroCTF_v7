@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inbox - Secure Mail</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.3.2/jsencrypt.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto p-4">
+        <header class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-cyan-400">Your Inbox</h1>
+            <div>
+                <span class="text-gray-400 mr-4">Welcome, <strong id="username">{{ username }}</strong></span>
+                <a href="/logout" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Logout</a>
+            </div>
+        </header>
+
+        <div class="bg-gray-800 rounded-lg shadow p-6">
+            <div class="flex space-x-4 mb-6">
+                <button id="request-encrypted" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Request Encrypted Message</button>
+                <button id="request-flag" 
+                    {% if is_admin %}
+                        class="bg-red-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    {% else %}
+                        class="bg-gray-600 text-gray-400 font-bold py-2 px-4 rounded cursor-not-allowed" disabled
+                    {% endif %}
+                >Request FLAG</button>
+            </div>
+            
+            <div class="bg-gray-900 p-3 rounded-lg mb-6">
+                <h3 class="text-lg font-semibold text-gray-300">Session Encryption Key</h3>
+                <p class="text-xs text-gray-500">This public key is used to encrypt incoming messages for this session only.</p>
+                <pre id="public-key-display" class="bg-gray-800 border border-gray-700 p-2 mt-2 rounded overflow-x-auto text-sm text-green-400">{{pubkey}}</pre>
+            </div>
+
+            <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Received Messages</h2>
+            <div id="inbox" class="space-y-4">
+                <p class="text-gray-500">Your inbox is empty. Request a message to get started.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionPublicKey = null;
+        let msgCounter = 0;
+
+        document.getElementById('request-encrypted').addEventListener('click', () => requestEncrypted(false));
+        document.getElementById('request-flag').addEventListener('click', () => requestEncrypted(true));
+
+        async function requestEncrypted(isFlagRequest) {
+            const response = await fetch('/request_encrypted', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    flag: isFlagRequest,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                displayMsg(data.encrypted_content, true);
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        }
+        
+        function displayMsg(content, encrypted) {
+            const inbox = document.getElementById('inbox');
+            if (inbox.querySelector('p.text-gray-500')) {
+                inbox.innerHTML = ''; // Clear the "empty" message
+            }
+            
+            msgCounter++;
+            const msgId = `msg-content-${msgCounter}`;
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'bg-gray-700 p-4 rounded-lg';
+
+            // Conditionally generate the button and other text based on the 'encrypted' flag
+            msgDiv.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-bold">New Encrypted Message</h3>
+                        <p class="text-sm text-gray-400">From: server@secure.mail</p>
+                    </div>
+                    <button 
+                        class="decrypt-btn bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-3 rounded" data-target="${msgId}">Decrypt
+                    </button>
+                </div>
+                <pre id="${msgId}" class="bg-gray-900 p-2 mt-2 rounded overflow-x-auto text-sm text-green-400">${content}</pre>
+            `;
+            inbox.prepend(msgDiv);
+        }
+
+        // Event delegation for decrypt buttons
+        document.getElementById('inbox').addEventListener('click', function(e) {
+            if (e.target && e.target.classList.contains('decrypt-btn')) {
+                const button = e.target;
+                const targetId = button.getAttribute('data-target');
+                const contentElement = document.getElementById(targetId);
+                const encryptedContent = contentElement.textContent;
+
+                const crypt = new JSEncrypt();
+                const sessionPrivateKey = sessionStorage.getItem("sessionPrivateKey")
+                crypt.setPrivateKey(sessionPrivateKey);
+                const decrypted = crypt.decrypt(encryptedContent);
+
+                if (decrypted) {
+                    contentElement.textContent = decrypted;
+                    contentElement.classList.remove('text-green-400');
+                    contentElement.classList.add('text-white');
+                    button.textContent = 'Decrypted';
+                    button.disabled = true;
+                    button.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    button.classList.add('bg-gray-500', 'cursor-default');
+                } else {
+                    contentElement.textContent = "--- DECRYPTION FAILED --- (This message was not encrypted with your session's public key)";
+                    contentElement.classList.remove('text-green-400');
+                    contentElement.classList.add('text-red-500');
+                     button.disabled = true;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

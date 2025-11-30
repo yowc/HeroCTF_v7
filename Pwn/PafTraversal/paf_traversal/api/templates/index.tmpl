@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Wordlist & Bruteforce Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Wordlist & Bruteforce Dashboard</h1>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Wordlists</h2>
+
+        <div class="panel-row">
+          <button id="refresh-wordlists" class="btn">Refresh</button>
+          <span id="wordlists-status" class="status"></span>
+        </div>
+
+        <div id="wordlists-empty" class="empty hidden">No wordlist files found.</div>
+
+        <ul id="wordlists" class="list"></ul>
+
+        <hr />
+
+        <h3>Upload wordlist</h3>
+        <form id="upload-form" class="form" autocomplete="off">
+          <div class="form-row">
+            <label for="upload-file">Choose file</label>
+            <input type="file" id="upload-file" accept=".txt,.lst,.dic,.wordlist,*/*" />
+          </div>
+
+          <div class="form-row">
+            <label for="upload-filename">Filename</label>
+            <input type="text" id="upload-filename" placeholder="e.g. rockyou.txt" />
+          </div>
+
+          <div class="form-row">
+            <label for="upload-content">Or paste content</label>
+            <textarea id="upload-content" rows="6" placeholder="Paste file content here if not selecting a file..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <button type="submit" class="btn primary">Upload</button>
+            <span id="upload-status" class="status"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Bruteforce</h2>
+
+        <div class="panel-row">
+          <span class="status">Start a bruteforce job by providing algorithm, hash and a wordlist.</span>
+        </div>
+
+        <pre id="bruteforce-list" class="pre"></pre>
+
+        <hr />
+
+        <h3>Start bruteforce</h3>
+        <form id="bruteforce-form" class="form">
+          <div class="form-row">
+            <label for="bruteforce-algo">Algorithm</label>
+            <select id="bruteforce-algo">
+              <option value="0">MD5</option>
+              <option value="1">SHA1</option>
+              <option value="2">SHA256</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="bruteforce-hash">Hash (hex)</label>
+            <input id="bruteforce-hash" type="text" placeholder="e.g. 5d41402abc4b2a76b9719d911017c592" />
+          </div>
+
+          <div class="form-row">
+            <label for="bruteforce-wordlist">Wordlist</label>
+            <select id="bruteforce-wordlist">
+              <option value="">-- loading wordlists --</option>
+            </select>
+            <span class="status" id="bruteforce-wordlist-help">Refresh wordlists if the list is empty.</span>
+          </div>
+
+          <div class="form-row">
+            <button type="submit" class="btn primary">Start</button>
+            <span id="bruteforce-start-status" class="status"></span>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

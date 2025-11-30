@@ -1,0 +1,25 @@
+
+:root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+body { margin: 0; background: #050507; color: #f3f3f3; }
+a { color: #ff345b; text-decoration: none; transition: color 0.2s ease; }
+a:hover { color: #ff5f7b; }
+.container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+.topbar { display:flex; align-items:center; justify-content:space-between; padding: 12px 20px; background: linear-gradient(90deg, #0b0b0e, #16010d); border-bottom:1px solid #2d0b16; box-shadow:0 6px 16px rgba(0,0,0,0.45); }
+.topbar h1 { margin: 0; font-size: 20px; letter-spacing: 1px; text-transform: uppercase; color:#ff264d; }
+.topbar nav { display:flex; gap:14px; align-items:center; }
+.topbar nav a { font-weight: 600; }
+button, .link { background:#1a1017; color:#f3f3f3; border:1px solid #ff264d; padding:8px 14px; border-radius:10px; cursor:pointer; transition: background 0.2s ease, transform 0.2s ease; }
+button:hover, .link:hover { background:#ff264d; color:#050507; transform: translateY(-1px); }
+.card { display:flex; flex-direction:column; gap:12px; max-width: 460px; padding:20px; background:#0b090d; border:1px solid #2d0b16; border-radius:14px; box-shadow:0 12px 24px rgba(0,0,0,0.4); }
+label { display:flex; flex-direction:column; gap:6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color:#d9d9d9; }
+input { background:#050507; color:#f3f3f3; border:1px solid #2d0b16; padding:10px 12px; border-radius:10px; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+input:focus { outline:none; border-color:#ff345b; box-shadow:0 0 0 2px rgba(255,52,91,0.25); }
+.flash { margin: 16px 20px; padding: 12px; border-radius: 10px; font-weight:600; }
+.flash.success { background: rgba(24, 68, 44, 0.85); border: 1px solid #2daa63; color:#dbffe4; }
+.flash.error   { background: rgba(68, 16, 26, 0.85); border: 1px solid #ff345b; color:#ffd4de; }
+.list { list-style: none; padding: 0; display:flex; flex-direction:column; gap:10px; }
+.list a { display:inline-flex; align-items:center; padding:10px 12px; border-radius:10px; background:#0e0b12; border:1px solid transparent; transition: border-color 0.2s ease, transform 0.2s ease; }
+.list a:hover { border-color:#ff345b; transform: translateX(4px); }
+code { background:#130912; padding:4px 8px; border-radius:6px; border:1px solid #2d0b16; color:#ff99ac; }
+.hint { color:#c7c7c7; font-size: 14px; }
+form { display:inline-block; }

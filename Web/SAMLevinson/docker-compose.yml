@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  idp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: idp-runtime    
+    container_name: saml-idp
+    ports:
+      - "8081:8081"
+    networks: [samlnet]
+    volumes:
+      - idp-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://web.heroctf.fr:8081/metadata >/dev/null 2>&1 || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  sp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: sp-runtime     
+    container_name: saml-sp
+    environment:
+      - IDP_METADATA_URL=http://idp:8081/metadata
+      - FLAG=Hero{S4ML_3XPL01T_FR0M_CR3J4M}
+    ports:
+      - "8080:8080"
+    networks: [samlnet]
+    volumes:
+      - sp-data:/app/data
+    depends_on:
+      idp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://web.heroctf.fr:8080/saml/metadata >/dev/null 2>&1 || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  bootstrap:
+    image: curlimages/curl:8.7.1
+    container_name: saml-bootstrap
+    networks: [samlnet]
+    depends_on:
+      sp:
+        condition: service_healthy
+      idp:
+        condition: service_healthy
+    volumes:
+      - ./bootstrap/register_sp.sh:/register_sp.sh:ro
+    entrypoint: ["/bin/sh", "/register_sp.sh"]
+
+networks:
+  samlnet: {}
+
+volumes:
+  idp-data: {}
+  sp-data: {}
